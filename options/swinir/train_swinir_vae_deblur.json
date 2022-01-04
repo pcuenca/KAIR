@@ -1,0 +1,83 @@
+{
+  "task": "swinir_vae_deblur"
+  , "model": "plain"
+  , "gpu_ids": [0]
+  , "dist": true
+
+  , "n_channels": 3
+
+  , "path": {
+    "root": "vaedeblur"
+    , "pretrained_netG": null
+    , "pretrained_netE": null
+  }
+
+  , "datasets": {
+    "train": {
+      "name": "train_dataset"
+      , "dataset_type": "plain"
+      , "dataroot_H": "trainsets/vae/trainH"
+      , "dataroot_L": "trainsets/vae/trainL"
+      , "H_size": 32                   // patch size. Not sure what the valid/appropriate values would be.
+      , "dataloader_shuffle": true
+      , "dataloader_num_workers": 16
+      , "dataloader_batch_size": 32      // batch size 1 | 16 | 32 | 48 | 64 | 128. Total batch size =4x8=32 in SwinIR
+    }
+    , "test": {
+      "name": "test_dataset"
+      , "dataset_type": "plain"
+      , "dataroot_H": "trainsets/vae/testH"
+      , "dataroot_L": "trainsets/vae/testL"
+    }
+  }
+
+  , "netG": {
+    "net_type": "swinir" 
+    , "upscale": 1
+    , "in_chans": 3 
+    , "img_size": 32                    // Same as H_size?
+    , "window_size": 8  
+    , "img_range": 1.0 
+    , "depths": [6, 6, 6, 6, 6, 6] 
+    , "embed_dim": 180 
+    , "num_heads": [6, 6, 6, 6, 6, 6]
+    , "mlp_ratio": 2 
+    , "upsampler": null
+    , "resi_connection": "1conv"        // "1conv" | "3conv"
+    , "init_type": "default"
+  }
+
+  , "train": {
+    "G_lossfn_type": "l1"               // to test: charbonnier; gan-like with discriminator network, see train_swinir_sr_realworld_x4_gan
+    , "G_lossfn_weight": 1.0
+    , "G_charbonnier_eps": 1e-9
+
+    , "E_decay": 0.999
+
+    , "G_optimizer_type": "adam"
+    , "G_optimizer_lr": 2e-4
+    , "G_optimizer_wd": 0
+    , "G_optimizer_clipgrad": null
+    , "G_optimizer_reuse": true
+
+    , "G_scheduler_type": "MultiStepLR"
+    , "G_scheduler_milestones": [250000, 400000, 450000, 475000, 500000]    // are these the number of training steps? Note that the denoising task has larger values
+    , "G_scheduler_gamma": 0.5
+
+    , "G_regularizer_orthstep": null
+    , "G_regularizer_clipstep": null
+
+    , "G_param_strict": true
+    , "E_param_strict": true
+
+    , "checkpoint_test": 5000
+    , "checkpoint_save": 5000
+    , "checkpoint_print": 200
+  }
+
+  , "wandb": {
+    "project": "swin"
+    , "tags": ["vae", "deblur"]
+    , "save_code": true
+  }
+}
