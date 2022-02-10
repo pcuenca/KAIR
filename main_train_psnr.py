@@ -224,8 +224,7 @@ def main(json_path='options/train_msrresnet_psnr.json'):
             # -------------------------------
             model.optimize_parameters(current_step)
 
-            # TODO: new option to log every 10 or 20 steps
-            if opt['rank'] == 0:
+            if current_step % opt['train']['checkpoint_log'] == 0 and opt['rank'] == 0:
                 logs = dict(model.current_log())
                 logs['step'] = current_step
                 logs['lr'] = model.current_learning_rate()
