@@ -40,16 +40,16 @@ def wandb_init(opt):
     if not log_to_wandb(opt):
         return
 
+    entity = opt['wandb'].get('entity', None)
     project = opt['wandb'].get('project', None)
     tags = opt['wandb'].get('tags', None)
     save_code = opt['wandb'].get('save_code', False)
 
-    wandb.init(project=project,
+    wandb.init(
+        project=project,
+        entity=entity,
         tags=tags,
-        config={
-            "patch_size": opt['datasets']['train']['H_size'],
-            "loss": opt['train']['G_lossfn_type']
-        },
+        config=opt,
         save_code=save_code,
     )
 
