@@ -203,8 +203,9 @@ def main(json_path='options/train_msrresnet_psnr.json'):
     # ----------------------------------------
     '''
 
+    total_steps = opt['train'].get('total_steps', 10_000_000)
     for epoch in range(1000000):  # keep running
-        for i, train_data in enumerate(train_loader):
+        for _, train_data in enumerate(train_loader):
 
             current_step += 1
 
@@ -295,6 +296,9 @@ def main(json_path='options/train_msrresnet_psnr.json'):
 
                 if log_to_wandb(opt):
                     wandb.log( {'avg_psnr': avg_psnr, 'step': current_step} )
+
+            if current_step >= total_steps:
+                break
 
 if __name__ == '__main__':
     main()
