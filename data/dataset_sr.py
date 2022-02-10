@@ -58,6 +58,15 @@ class DatasetSR(data.Dataset):
             img_L = util.imread_uint(L_path, self.n_channels)
             img_L = util.uint2single(img_L)
 
+            # Further downscale if the source pairs have a different scale factor as the one we are training for
+            H_L, _ = img_L.shape[:2]
+            H, W = img_H.shape[:2]
+            actual_scale = H // H_L
+            if actual_scale != self.sf:
+                img_L = util.imresize_np(img_L, actual_scale / self.sf, True)
+                # Clipping is not done in the other path, but pixel values are out of range sometimes
+                img_L = img_L.clip(0, 1)
+
         else:
             # --------------------------------
             # sythesize L image via matlab's bicubic
