@@ -6,6 +6,7 @@ import random
 import numpy as np
 from collections import OrderedDict
 import logging
+import shutil
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 import torch
@@ -88,6 +89,17 @@ def main(json_path='options/train_msrresnet_psnr.json'):
     
     if opt['rank'] == 0:
         util.mkdirs((path for key, path in opt['path'].items() if 'pretrained' not in key))
+
+    # Download wandb checkpoints if necessary, and move to models path
+    pretrained_netG = opt['path']['pretrained_netG']
+    if pretrained_netG is not None and ":" in pretrained_netG:
+        print("Downloading checkpoint from wandb artifact")
+        artifact = wandb.Api().artifact(pretrained_netG)
+        artifact_path = artifact.download()
+        print(artifact_path)
+        for file in os.listdir(artifact_path):
+            print(file)
+            shutil.copy(os.path.join(artifact_path, file), opt['path']['models'])
 
     # ----------------------------------------
     # update opt
