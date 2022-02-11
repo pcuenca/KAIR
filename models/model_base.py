@@ -3,15 +3,33 @@ import torch
 import torch.nn as nn
 from utils.utils_bnorm import merge_bn, tidy_sequential
 from torch.nn.parallel import DataParallel, DistributedDataParallel
+try:
+    import torch_xla.core.xla_model as xm
+except:
+    pass
 
+def default_device(opt):
+    if opt['gpu_ids'] is None:
+        return "cpu"
+
+    accelerator = opt.get('accelerator', 'cuda')
+    if accelerator == "xla":
+        return xm.xla_device()
+    return "cuda"
 
 class ModelBase():
     def __init__(self, opt):
         self.opt = opt                         # opt
         self.save_dir = opt['path']['models']  # save models
-        self.device = torch.device('cuda' if opt['gpu_ids'] is not None else 'cpu')
+        self.device = default_device(opt)
         self.is_train = opt['is_train']        # training or not
         self.schedulers = []                   # schedulers
+
+    @property
+    def accelerator(self):
+        if self.opt['gpu_ids'] is None:
+            return "cpu"
+        return self.opt.get('accelerator', 'cuda')
 
     """
     # ----------------------------------------
@@ -37,6 +55,13 @@ class ModelBase():
 
     def define_scheduler(self):
         pass
+
+    def optimizer_step(self, optimizer):
+        if self.accelerator == "xla":
+            xm.optimizer_step(optimizer)
+            xm.mark_step()
+        else:
+            optimizer.step()
 
     """
     # ----------------------------------------

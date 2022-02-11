@@ -161,7 +161,7 @@ class ModelPlain(ModelBase):
         if G_optimizer_clipgrad > 0:
             torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=self.opt_train['G_optimizer_clipgrad'], norm_type=2)
 
-        self.G_optimizer.step()
+        self.optimizer_step(self.G_optimizer)
 
         # ------------------------------------
         # regularizer
