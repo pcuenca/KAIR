@@ -1,5 +1,5 @@
 {
-  "task": "swinir_vqgan_finetune_psnr"
+  "task": "swinir_vqgan_finetune_psnr_x2"
   , "model": "plain"
   , "gpu_ids": [0]
   , "dist": true
@@ -9,8 +9,8 @@
 
   , "path": {
     "root": "vqgan"
-    , "pretrained_netG": "/home/pedro/code/dalle/swin/KAIR/model_zoo/swinir/003_realSR_BSRGAN_DFO_s64w8_SwinIR-M_x2_GAN.pth"
-    , "pretrained_netG_params": "params_ema"
+    , "pretrained_netG": "/home/pedro/code/KAIR/model_zoo/swinir/001_classicalSR_DIV2K_s48w8_SwinIR-M_x2.pth"
+    , "pretrained_netG_params": ""
     , "pretrained_netE": null
   }
 
@@ -18,21 +18,21 @@
     "train": {
       "name": "train_dataset"
       , "dataset_type": "sr"
-      , "dataroot_H": "/data/datasets/dalle-mini/vqgan/open-images/encoded-decoded/inputs"
-      , "dataroot_L": "/data/datasets/dalle-mini/vqgan/open-images/encoded-decoded/decoded"
+      , "dataroot_H": "/data/vqgan/inputs"
+      , "dataroot_L": "/data/vqgan/decoded"
       , "H_size": 256                   // patch_size 256 | 288 | 320.
       , "shuffle_prob": 0.1
       , "use_sharp": true
 
       , "dataloader_shuffle": true
       , "dataloader_num_workers": 16
-      , "dataloader_batch_size": 8      // batch size 1 | 16 | 32 | 48 | 64 | 128. Total batch size =4x8=32 in SwinIR
+      , "dataloader_batch_size": 64      // batch size 1 | 16 | 32 | 48 | 64 | 128. Total batch size =4x8=32 in SwinIR
     }
     , "test": {
       "name": "test_dataset"
       , "dataset_type": "plain"
-      , "dataroot_H": "/data/datasets/dalle-mini/vqgan/open-images/encoded-decoded/test-inputs"
-      , "dataroot_L": "/data/datasets/dalle-mini/vqgan/open-images/encoded-decoded/test-decoded"
+      , "dataroot_H": "/data/vqgan/test-inputs"
+      , "dataroot_L": "/data/vqgan/test-decoded"
 
     }
   }
@@ -80,11 +80,13 @@
     , "checkpoint_test": 500000000			// Disabled. L and H images need to have the same dimensions
     , "checkpoint_save": 5000
     , "checkpoint_print": 200
+    , "checkpoint_log": 1
   }
 
   , "wandb": {
-    "project": "swin"
-    , "tags": ["vqgan", "sr", "x2"]
+    "entity": "dalle-mini"
+    , "project": "sr"
+    , "tags": ["swin", "x2", "vqgan"]
     , "save_code": false
   }
 }
