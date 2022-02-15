@@ -10,13 +10,12 @@ import shutil
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 import torch
-import wandb
-import glob
 
 from utils import utils_logger
 from utils import utils_image as util
 from utils import utils_option as option
 from utils.utils_dist import get_dist_info, init_dist
+from utils.utils_wandb import wandb_init, log_artifact, log_to_wandb, download_wandb_checkpoints
 
 from data.select_dataset import define_Dataset
 from models.select_model import define_Model
@@ -32,36 +31,6 @@ from models.select_model import define_Model
 # https://github.com/xinntao/BasicSR
 # --------------------------------------------
 '''
-
-# W&B helpers
-def log_to_wandb(opt):
-    return 'wandb' in opt
-
-def wandb_init(opt):
-    if not log_to_wandb(opt):
-        return
-
-    entity = opt['wandb'].get('entity', None)
-    project = opt['wandb'].get('project', None)
-    tags = opt['wandb'].get('tags', None)
-    save_code = opt['wandb'].get('save_code', False)
-
-    wandb.init(
-        project=project,
-        entity=entity,
-        tags=tags,
-        config=opt,
-        save_code=save_code,
-    )
-
-# Maybe move to model class
-def log_artifact(name, model, current_step):
-    # Prepend run id to artifact name so it is attributed to the current run
-    name = f'{wandb.run.id}_{name}'
-    artifact = wandb.Artifact(name, type='model')
-    for path in glob.glob(os.path.join(model.save_dir, f'{current_step}_*')):
-        artifact.add_file(path)
-    wandb.run.log_artifact(artifact)
 
 def main(json_path='options/train_msrresnet_psnr.json'):
 
@@ -105,15 +74,16 @@ def main(json_path='options/train_msrresnet_psnr.json'):
     # update opt
     # ----------------------------------------
     # -->-->-->-->-->-->-->-->-->-->-->-->-->-
+    # Download wandb checkpoints if necessary
+    download_wandb_checkpoints(opt)
+
     init_iter_G, init_path_G = option.find_last_checkpoint(opt['path']['models'], net_type='G')
     init_iter_E, init_path_E = option.find_last_checkpoint(opt['path']['models'], net_type='E')
-
     # Only replace pretrained_netG if a previous checkpoint was found.
-    # We should make this more robust and maybe include init_path_E too
+    # We should make this more robust and maybe include init_path_E, init_path_D too
     if init_path_G is not None:
         opt['path']['pretrained_netG'] = init_path_G
         opt['path']['pretrained_netG_params'] = None    # Use default
-
     opt['path']['pretrained_netE'] = init_path_E
     init_iter_optimizerG, init_path_optimizerG = option.find_last_checkpoint(opt['path']['models'], net_type='optimizerG')
     opt['path']['pretrained_optimizerG'] = init_path_optimizerG
@@ -141,7 +111,6 @@ def main(json_path='options/train_msrresnet_psnr.json'):
         utils_logger.logger_info(logger_name, os.path.join(opt['path']['log'], logger_name+'.log'))
         logger = logging.getLogger(logger_name)
         logger.info(option.dict2str(opt))
-
         wandb_init(opt)
 
     # ----------------------------------------
@@ -236,16 +205,15 @@ def main(json_path='options/train_msrresnet_psnr.json'):
             # -------------------------------
             model.optimize_parameters(current_step)
 
+            # -------------------------------
+            # 4) training information
+            # -------------------------------
             if current_step % opt['train']['checkpoint_log'] == 0 and opt['rank'] == 0:
                 logs = dict(model.current_log())
                 logs['step'] = current_step
                 logs['lr'] = model.current_learning_rate()
-                if log_to_wandb(opt):
-                    wandb.log(logs)
+                log_to_wandb(opt, logs)
 
-            # -------------------------------
-            # 4) training information
-            # -------------------------------
             if current_step % opt['train']['checkpoint_print'] == 0 and opt['rank'] == 0:
                 logs = model.current_log()  # such as loss
                 message = '<epoch:{:3d}, iter:{:8,d}, lr:{:.3e}> '.format(epoch, current_step, model.current_learning_rate())
@@ -259,8 +227,7 @@ def main(json_path='options/train_msrresnet_psnr.json'):
             if current_step % opt['train']['checkpoint_save'] == 0 and opt['rank'] == 0:
                 logger.info('Saving the model.')
                 model.save(current_step)
-                if log_to_wandb:
-                    log_artifact(opt['task'], model, current_step)
+                log_artifact(opt, model, current_step)
 
             # -------------------------------
             # 6) testing
@@ -304,9 +271,7 @@ def main(json_path='options/train_msrresnet_psnr.json'):
 
                 # testing log
                 logger.info('<epoch:{:3d}, iter:{:8,d}, Average PSNR : {:<.2f}dB\n'.format(epoch, current_step, avg_psnr))
-
-                if log_to_wandb(opt):
-                    wandb.log( {'avg_psnr': avg_psnr, 'step': current_step} )
+                log_to_wandb(opt, {'avg_psnr': avg_psnr, 'step': current_step})
 
             if current_step >= total_steps:
                 break

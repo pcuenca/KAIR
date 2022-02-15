@@ -14,6 +14,7 @@ from utils import utils_logger
 from utils import utils_image as util
 from utils import utils_option as option
 from utils.utils_dist import get_dist_info, init_dist
+from utils.utils_wandb import wandb_init, log_artifact, log_to_wandb, download_wandb_checkpoints
 
 from data.select_dataset import define_Dataset
 from models.select_model import define_Model
@@ -62,10 +63,17 @@ def main(json_path='options/train_msrresnet_gan.json'):
     # update opt
     # ----------------------------------------
     # -->-->-->-->-->-->-->-->-->-->-->-->-->-
+    # Download wandb checkpoints if necessary
+    download_wandb_checkpoints(opt)
+
     init_iter_G, init_path_G = option.find_last_checkpoint(opt['path']['models'], net_type='G')
     init_iter_D, init_path_D = option.find_last_checkpoint(opt['path']['models'], net_type='D')
     init_iter_E, init_path_E = option.find_last_checkpoint(opt['path']['models'], net_type='E')
-    opt['path']['pretrained_netG'] = init_path_G
+    # Only replace pretrained_netG if a previous checkpoint was found.
+    # We should make this more robust and maybe include init_path_E, init_path_D too
+    if init_path_G is not None:
+        opt['path']['pretrained_netG'] = init_path_G
+        opt['path']['pretrained_netG_params'] = None    # Use default
     opt['path']['pretrained_netD'] = init_path_D
     opt['path']['pretrained_netE'] = init_path_E
     init_iter_optimizerG, init_path_optimizerG = option.find_last_checkpoint(opt['path']['models'], net_type='optimizerG')
@@ -98,6 +106,7 @@ def main(json_path='options/train_msrresnet_gan.json'):
         utils_logger.logger_info(logger_name, os.path.join(opt['path']['log'], logger_name+'.log'))
         logger = logging.getLogger(logger_name)
         logger.info(option.dict2str(opt))
+        wandb_init(opt)
 
     # ----------------------------------------
     # seed
@@ -113,7 +122,7 @@ def main(json_path='options/train_msrresnet_gan.json'):
 
     '''
     # ----------------------------------------
-    # Step--2 (creat dataloader)
+    # Step--2 (create dataloader)
     # ----------------------------------------
     '''
 
@@ -171,8 +180,9 @@ def main(json_path='options/train_msrresnet_gan.json'):
     # ----------------------------------------
     '''
 
+    total_steps = opt['train'].get('total_steps', 10_000_000)
     for epoch in range(1000000):  # keep running
-        for i, train_data in enumerate(train_loader):
+        for _, train_data in enumerate(train_loader):
 
             current_step += 1
 
@@ -194,6 +204,12 @@ def main(json_path='options/train_msrresnet_gan.json'):
             # -------------------------------
             # 4) training information
             # -------------------------------
+            if current_step % opt['train']['checkpoint_log'] == 0 and opt['rank'] == 0:
+                logs = dict(model.current_log())
+                logs['step'] = current_step
+                logs['lr'] = model.current_learning_rate()
+                log_to_wandb(opt, logs)
+
             if current_step % opt['train']['checkpoint_print'] == 0 and opt['rank'] == 0:
                 logs = model.current_log()  # such as loss
                 message = '<epoch:{:3d}, iter:{:8,d}, lr:{:.3e}> '.format(epoch, current_step, model.current_learning_rate())
@@ -207,6 +223,7 @@ def main(json_path='options/train_msrresnet_gan.json'):
             if current_step % opt['train']['checkpoint_save'] == 0 and opt['rank'] == 0:
                 logger.info('Saving the model.')
                 model.save(current_step)
+                log_artifact(opt, model, current_step)
 
             # -------------------------------
             # 6) testing
@@ -250,6 +267,10 @@ def main(json_path='options/train_msrresnet_gan.json'):
 
                 # testing log
                 logger.info('<epoch:{:3d}, iter:{:8,d}, Average PSNR : {:<.2f}dB\n'.format(epoch, current_step, avg_psnr))
+                log_to_wandb(opt, {'avg_psnr': avg_psnr, 'step': current_step})
+
+            if current_step >= total_steps:
+                break
 
 if __name__ == '__main__':
     main()
